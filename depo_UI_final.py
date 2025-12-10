@@ -21,6 +21,8 @@ from docx.shared import Inches
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
+import base64
+import requests
 
 # --- Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -276,7 +278,9 @@ def background_summary(saved_path, api_key, prompt_text):
         traceback.print_exc()
         return {"path": None, "error": str(e), "log": logs}
 
-
+def get_base64_image(image_url):
+    response = requests.get(image_url)
+    return base64.b64encode(response.content).decode()
 
 def get_chatgpt_response(prompt: str,text: str, api_key: str, model: str) -> str:
     """
@@ -423,16 +427,19 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-logo_path = r"C:\Users\Teju\Downloads\twc.webp"
-
-
-# Convert logo to Base64 safely
-def get_base64_image(image_path):
-    with open(image_path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
+# logo_path = r"C:\Users\Teju\Downloads\twc.webp"
+logo_path = r"https://raw.githubusercontent.com/Tejashwini-8873/test/main/assets/RLG.jpg"
 logo_base64 = get_base64_image(logo_path)
+
+
+
+# # Convert logo to Base64 safely
+# def get_base64_image(image_path):
+#     with open(image_path, "rb") as f:
+#         data = f.read()
+#     return base64.b64encode(data).decode()
+
+# logo_base64 = get_base64_image(logo_path)
 
 
 # --- Render Compact Green Header ---
@@ -480,7 +487,7 @@ st.markdown(f"""
     </style>
 
     <div class="top-header">
-        <h1>📜 TWC Deposition Summarizer</h1>
+        <h1>📜 RLG Deposition Summarizer</h1>
         <p>AI-powered legal deposition analysis — with The Wonderful touch 🍃</p>
     </div>
 """, unsafe_allow_html=True)
