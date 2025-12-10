@@ -3,5 +3,5 @@ openai==0.28
 requests
 python-docx
 Pillow
-PyMuPDF
+PyMuPDF==1.23.26
 regex
