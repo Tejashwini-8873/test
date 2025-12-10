@@ -1,0 +1,7 @@
+streamlit
+openai>=1.0.0
+requests
+python-docx
+Pillow
+PyMuPDF
+regex
