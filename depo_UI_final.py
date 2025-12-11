@@ -24,6 +24,13 @@ import time
 import base64
 import requests
 
+# ------------------ AZURE BLOB STORAGE SETUP ------------------
+from azure.storage.blob import BlobServiceClient
+
+from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+from datetime import datetime, timedelta
+
+
 # --- Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -33,9 +40,6 @@ st.session_state.setdefault("summary_future", None)
 st.session_state.setdefault("summary_result", None)
 st.session_state.setdefault("summary_log", [])
 st.session_state.setdefault("summary_error", None)
-
-# ------------------ AZURE BLOB STORAGE SETUP ------------------
-from azure.storage.blob import BlobServiceClient
 
 # --- API Keys (use env vars for production) ---
 api_key="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"
@@ -57,21 +61,53 @@ UPLOAD_CONTAINER = "depositions"
 SUMMARY_CONTAINER = "summaries"
 
 
+# def upload_file_to_blob(uploaded_file):
+#     blob_name = uploaded_file.name
+#     data = uploaded_file.getvalue()
+
+#     print("DEBUG — File name:", blob_name)
+#     print("DEBUG — File size:", len(data))
+
+#     if len(data) == 0:
+#         raise ValueError("Uploaded file is EMPTY — Streamlit upload failed.")
+
+#     container = blob_service.get_container_client(UPLOAD_CONTAINER)
+#     blob_client = container.get_blob_client(blob_name)
+
+#     blob_client.upload_blob(data, overwrite=True)
+#     return blob_name
+
 def upload_file_to_blob(uploaded_file):
     blob_name = uploaded_file.name
     data = uploaded_file.getvalue()
 
-    print("DEBUG — File name:", blob_name)
-    print("DEBUG — File size:", len(data))
-
-    if len(data) == 0:
-        raise ValueError("Uploaded file is EMPTY — Streamlit upload failed.")
-
     container = blob_service.get_container_client(UPLOAD_CONTAINER)
-    blob_client = container.get_blob_client(blob_name)
+    blob = container.get_blob_client(blob_name)
 
-    blob_client.upload_blob(data, overwrite=True)
-    return blob_name
+    # Upload blob
+    blob.upload_blob(data, overwrite=True)
+    logging.info(f"📤 Deposition uploaded: {blob_name}")
+
+    # Generate SAS URL so user can view the deposition
+    sas_token = generate_blob_sas(
+        account_name=blob_service.account_name,
+        container_name=UPLOAD_CONTAINER,
+        blob_name=blob_name,
+        account_key=blob_service.credential.account_key,
+        permission=BlobSasPermissions(read=True),
+        expiry=datetime.utcnow() + timedelta(hours=24)
+    )
+
+    sas_url = (
+        f"https://{blob_service.account_name}.blob.core.windows.net/"
+        f"{UPLOAD_CONTAINER}/{blob_name}?{sas_token}"
+    )
+
+    logging.info(f"🔐 Deposition SAS URL generated: {sas_url}")
+
+    return blob_name, sas_url
+
+
 
 def download_blob_to_temp(blob_name):
     """
@@ -88,19 +124,46 @@ def download_blob_to_temp(blob_name):
         return tmp.name
 
 
+# def upload_summary_to_blob(local_path, new_blob_name):
+#     """
+#     Upload the final summary DOCX to Azure Blob Storage.
+#     Returns URL.
+#     """
+#     container = blob_service.get_container_client(SUMMARY_CONTAINER)
+#     blob = container.get_blob_client(new_blob_name)
+
+#     with open(local_path, "rb") as f:
+#         blob.upload_blob(f, overwrite=True)
+
+#     # Public URL (private access uses SAS—can add later)
+#     return f"https://{blob_service.account_name}.blob.core.windows.net/{SUMMARY_CONTAINER}/{new_blob_name}"
 def upload_summary_to_blob(local_path, new_blob_name):
-    """
-    Upload the final summary DOCX to Azure Blob Storage.
-    Returns URL.
-    """
     container = blob_service.get_container_client(SUMMARY_CONTAINER)
     blob = container.get_blob_client(new_blob_name)
 
+    # Upload file
     with open(local_path, "rb") as f:
         blob.upload_blob(f, overwrite=True)
 
-    # Public URL (private access uses SAS—can add later)
-    return f"https://{blob_service.account_name}.blob.core.windows.net/{SUMMARY_CONTAINER}/{new_blob_name}"
+    logging.info(f"📤 Summary uploaded successfully as '{new_blob_name}'")
+
+    # Generate SAS token (read-only, 24 hours)
+    sas_token = generate_blob_sas(
+        account_name=blob_service.account_name,
+        container_name=SUMMARY_CONTAINER,
+        blob_name=new_blob_name,
+        account_key=blob_service.credential.account_key,
+        permission=BlobSasPermissions(read=True),
+        expiry=datetime.utcnow() + timedelta(hours=24)
+    )
+
+    sas_url = (
+        f"https://{blob_service.account_name}.blob.core.windows.net/"
+        f"{SUMMARY_CONTAINER}/{new_blob_name}?{sas_token}"
+    )
+
+    logging.info(f"🔐 SAS URL generated: {sas_url}")
+    return sas_url
 
 # Ensure containers exist
 def ensure_container(container_name):
@@ -866,6 +929,8 @@ if uploaded_file is not None:
 
             # Upload file ONLY here — not during upload widget
             blob_name = upload_file_to_blob(uploaded_file)
+            blob_name, deposition_sas_url = upload_file_to_blob(uploaded_file)
+            st.session_state["deposition_sas_url"] = deposition_sas_url
             st.session_state["blob_name"] = blob_name
 
             # Download for extraction
@@ -958,6 +1023,8 @@ if uploaded_file is not None:
                 f"<a href='{st.session_state.summary_result}' target='_blank'>📄 Download Summary</a>",
                 unsafe_allow_html=True
             )
+            # st.markdown(f"<a href='{st.session_state.deposition_sas_url}' target='_blank'>📄 View Uploaded File</a>", unsafe_allow_html=True)
+
 
         elif st.session_state.summary_status == "error":
             st.error(f"❌ Summary failed: {st.session_state.summary_error}")
