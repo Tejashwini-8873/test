@@ -37,7 +37,7 @@ st.session_state.setdefault("summary_error", None)
 
 
 # --- API Keys (use env vars for production) ---
-api_key= "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"
+api_key="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"
 PERPLEXITY_API_KEY = "pplx-c37yObHYXnll0zHXvO7p5Q8eNN8MmctIlERoJ56cYG4oasdghjkgbB7"
 
 executor = ThreadPoolExecutor(max_workers=1)
@@ -902,4 +902,5 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
+
 
