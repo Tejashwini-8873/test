@@ -5,3 +5,4 @@ python-docx
 Pillow
 PyMuPDF==1.23.26
 regex
+azure-storage-blob
