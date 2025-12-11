@@ -876,7 +876,7 @@ if st.button("💬 Ask AI"):
             st.stop()
 
         with st.spinner("Thinking... 💭"):
-            response = get_chatgpt_response(query, text_data, api_key=api_key,model="gpt-4-turbo")
+            response = get_chatgpt_response(query, text_data, api_key,model="gpt-4-turbo")
             user_responses.append((query, response))
             st.session_state['user_responses'] = user_responses
             st.success("✅ Response generated!")
@@ -902,5 +902,6 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
+
 
 
