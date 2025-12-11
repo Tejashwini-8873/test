@@ -34,11 +34,85 @@ st.session_state.setdefault("summary_result", None)
 st.session_state.setdefault("summary_log", [])
 st.session_state.setdefault("summary_error", None)
 
-
+# ------------------ AZURE BLOB STORAGE SETUP ------------------
+from azure.storage.blob import BlobServiceClient
 
 # --- API Keys (use env vars for production) ---
-api_key="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"
-PERPLEXITY_API_KEY = "pplx-c37yObHYXnll0zHXvO7p5Q8eNN8MmctIlERoJ56cYG4oasdghjkgbB7"
+api_key="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"
+PERPLEXITY_API_KEY = "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"
+
+# YOUR STORAGE CONNECTION STRING
+AZURE_STORAGE_CONNECTION_STRING = (
+    "DefaultEndpointsProtocol=https;"
+    "AccountName=depodatastorage;"
+    "AccountKey=LyN82tPOGrvnh1nEReIzMj2jp5P6BMZZ2D4ypIFGNKqBcoWEAeic06AHrDBGUnjPBYs+gFoss4Ao+ASt6pUvtg==;"
+    "EndpointSuffix=core.windows.net"
+)
+
+# Create Blob Client
+blob_service = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+
+# Containers used
+UPLOAD_CONTAINER = "depositions"
+SUMMARY_CONTAINER = "summaries"
+
+
+def upload_file_to_blob(uploaded_file):
+    blob_name = uploaded_file.name
+    data = uploaded_file.getvalue()
+
+    print("DEBUG — File name:", blob_name)
+    print("DEBUG — File size:", len(data))
+
+    if len(data) == 0:
+        raise ValueError("Uploaded file is EMPTY — Streamlit upload failed.")
+
+    container = blob_service.get_container_client(UPLOAD_CONTAINER)
+    blob_client = container.get_blob_client(blob_name)
+
+    blob_client.upload_blob(data, overwrite=True)
+    return blob_name
+
+def download_blob_to_temp(blob_name):
+    """
+    Downloads blob → returns temporary local file path for processing.
+    """
+    container = blob_service.get_container_client(UPLOAD_CONTAINER)
+    blob = container.get_blob_client(blob_name)
+
+    data = blob.download_blob().readall()
+
+    suffix = ".pdf" if blob_name.lower().endswith(".pdf") else ".docx"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(data)
+        return tmp.name
+
+
+def upload_summary_to_blob(local_path, new_blob_name):
+    """
+    Upload the final summary DOCX to Azure Blob Storage.
+    Returns URL.
+    """
+    container = blob_service.get_container_client(SUMMARY_CONTAINER)
+    blob = container.get_blob_client(new_blob_name)
+
+    with open(local_path, "rb") as f:
+        blob.upload_blob(f, overwrite=True)
+
+    # Public URL (private access uses SAS—can add later)
+    return f"https://{blob_service.account_name}.blob.core.windows.net/{SUMMARY_CONTAINER}/{new_blob_name}"
+
+# Ensure containers exist
+def ensure_container(container_name):
+    try:
+        blob_service.create_container(container_name)
+    except Exception:
+        pass  # already exists
+
+
+# ensure_container(UPLOAD_CONTAINER)
+# ensure_container(SUMMARY_CONTAINER)
+
 
 executor = ThreadPoolExecutor(max_workers=1)
 def create_deposition_summary(input_docx, output_docx):
@@ -225,58 +299,141 @@ def save_uploaded_file(uploaded_file):
     with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
     return file_path
-def background_summary(saved_path, api_key, prompt_text):
+# ...existing code...
+def background_summary(blob_name, api_key, prompt_text):
     logs = []
 
     def log(msg):
-        print(msg) 
-        logs.append(msg)
-        # st.session_state["summary_log"] = logs
+        # central logging for both console and return payload
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        entry = f"{timestamp} - {msg}"
+        print(entry)
+        logs.append(entry)
 
     try:
-        file_path=saved_path
-        
-        log(f"📥 Background job started")
-        log(f"📄 Received file_path: {file_path}")
+        log("background_summary() STARTED")
+        log(f"Blob requested: {blob_name}")
 
-        if file_path.lower().endswith(".pdf"):
-            log("🧾 Extracting text from PDF...")
-            text = extract_text_from_pdf(file_path)
+        # 1️⃣ Download deposition file from Azure Blob
+        log("📥 Downloading from Azure Blob...")
+        temp_path = download_blob_to_temp(blob_name)
+        log(f"Downloaded to temp path: {temp_path}")
+
+        # 2️⃣ Extract text
+        if temp_path.lower().endswith(".pdf"):
+            log("🧾 Detected PDF — extracting text from PDF...")
+            text = extract_text_from_pdf(temp_path)
+            log(f"PDF extraction complete — extracted {len(text)} characters")
         else:
-            log("📝 Extracting text from DOCX...")
-            text = extract_text_from_docx(file_path)
+            log("📝 Detected DOCX — extracting text from DOCX...")
+            text = extract_text_from_docx(temp_path)
+            log(f"DOCX extraction complete — extracted {len(text)} characters")
 
-        log("🤖 Generating AI summary...")
-        # summary_text = generate_summary_with_chatgpt(text, prompt_text, api_key, model="gpt-4-turbo")
-        summary_text= get_chatgpt_response(prompt_text,text,api_key,model="gpt-5")
-        OUTPUT_DIR = os.path.dirname(file_path)
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
-        output_path = os.path.join(OUTPUT_DIR, f"{base_name}_raw_summary.docx")
-        formatted_output_path = os.path.join(OUTPUT_DIR, f"{base_name}_final_summary.docx")
-
-        log("💾 Saving summary DOCX...")
-        doc = Document()
-        doc.add_heading(f"Deposition Summary - {uploaded_file.name}", level=1)
-        doc.add_paragraph(summary_text)
-        doc.save(output_path)
-        
+        # 3️⃣ Generate summary using GPT
+        log("🤖 Calling get_chatgpt_response() to generate summary...")
         try:
-            create_deposition_summary(output_path, formatted_output_path)
-            log("✅ Deposition summary formatted successfully!")
-            final_docx_path = formatted_output_path
+            summary_text = get_chatgpt_response(prompt_text, text, api_key, model="gpt-5")
+            log(f"AI summary generated — length {len(summary_text)} characters")
         except Exception as e:
-            log(f"⚠️ Formatting failed, providing unformatted version instead. Error: {e}")
-            final_docx_path = output_path
+            err = traceback.format_exc()
+            log(f"❌ get_chatgpt_response() failed: {e}")
+            log(err)
+            raise
 
-        log("✅ Summary generation completed successfully.")
-    
-        return {"path": final_docx_path, "log": logs}
+        # 4️⃣ Save raw summary locally for formatting
+        base_name = os.path.splitext(blob_name)[0]
+        raw_local = os.path.join(tempfile.gettempdir(), f"{base_name}_summary_raw.docx")
+        log(f"Saving raw summary to: {raw_local}")
+        doc = Document()
+        doc.add_heading("Deposition Summary", level=1)
+        doc.add_paragraph(summary_text)
+        doc.save(raw_local)
+        log("Raw summary saved.")
+
+        # 5️⃣ Try formatted summary
+        final_local = os.path.join(tempfile.gettempdir(), f"{base_name}_summary_final.docx")
+        try:
+            log("Attempting to format raw summary into structured DOCX...")
+            create_deposition_summary(raw_local, final_local)
+            final_used = final_local
+            log("✅ Formatting applied successfully.")
+        except Exception as e:
+            fmt_err = traceback.format_exc()
+            log(f"⚠️ Formatting failed: {e}")
+            log(fmt_err)
+            final_used = raw_local
+            log("Using raw summary as fallback.")
+
+        # 6️⃣ Upload summary DOCX to Azure Blob Storage
+        final_blob_name = f"{base_name}_summary.docx"
+        log(f"Uploading final summary to Azure as blob: {final_blob_name}")
+        final_url = upload_summary_to_blob(final_used, final_blob_name)
+        log(f"🚀 Uploaded summary to Azure Blob Storage: {final_url}")
+
+        log("background_summary() COMPLETED")
+        return {"path": final_url, "log": logs}
 
     except Exception as e:
-        traceback.print_exc()
+        err_trace = traceback.format_exc()
+        log(f"FATAL ERROR in background_summary(): {e}")
+        log(err_trace)
         return {"path": None, "error": str(e), "log": logs}
+# ...existing code...
+
+
+# def background_summary(blob_name, api_key, prompt_text):
+#     logs = []
+
+#     def log(msg):
+#         print(msg)
+#         logs.append(msg)
+
+#     try:
+#         # 1️⃣ Download deposition file from Azure Blob
+#         log(f"📥 Downloading from Azure Blob: {blob_name}")
+#         temp_path = download_blob_to_temp(blob_name)
+
+#         # 2️⃣ Extract text
+#         if temp_path.lower().endswith(".pdf"):
+#             log("🧾 Extracting text from PDF...")
+#             text = extract_text_from_pdf(temp_path)
+#         else:
+#             log("📝 Extracting text from DOCX...")
+#             text = extract_text_from_docx(temp_path)
+
+#         # 3️⃣ Generate summary using GPT
+#         log("🤖 Generating AI summary...")
+#         summary_text = get_chatgpt_response(prompt_text, text, api_key, model="gpt-5")
+
+#         # 4️⃣ Save raw summary locally for formatting
+#         base_name = os.path.splitext(blob_name)[0]
+#         raw_local = os.path.join(tempfile.gettempdir(), f"{base_name}_summary_raw.docx")
+
+#         doc = Document()
+#         doc.add_heading("Deposition Summary", level=1)
+#         doc.add_paragraph(summary_text)
+#         doc.save(raw_local)
+
+#         # 5️⃣ Try formatted summary
+#         final_local = os.path.join(tempfile.gettempdir(), f"{base_name}_summary_final.docx")
+#         try:
+#             create_deposition_summary(raw_local, final_local)
+#             final_used = final_local
+#             log("✅ Formatting applied.")
+#         except Exception as e:
+#             log(f"⚠ Formatting failed: {e}. Using raw summary.")
+#             final_used = raw_local
+
+#         # 6️⃣ Upload summary DOCX to Azure Blob Storage
+#         final_blob_name = f"{base_name}_summary.docx"
+#         final_url = upload_summary_to_blob(final_used, final_blob_name)
+
+#         log("🚀 Uploaded summary to Azure Blob Storage.")
+#         return {"path": final_url, "log": logs}
+
+#     except Exception as e:
+#         traceback.print_exc()
+#         return {"path": None, "error": str(e), "log": logs}
 
 def get_base64_image(image_url):
     response = requests.get(image_url)
@@ -566,6 +723,7 @@ json_format= """{
         }
         """
 
+
 prompt = f"""
         You are a senior legal analyst specializing in deposition analysis. Your task is to review a full deposition transcript and perform two critical functions:
         1. Page-Group Subject Summaries
@@ -696,85 +854,113 @@ prompt = f"""
 # Create horizontal button layout
 col1, col2, col3 = st.columns([1, 1, 1])
 # prompt="summarize the deposition in 2 points"
+# ============================
+#  FILE UPLOAD + READ + SUMMARY
+# ============================
 
 if uploaded_file is not None:
 
-    # --- READ FILE BUTTON ---
     with col1:
+
         if st.button("📖 Read File"):
-            temp_path = save_uploaded_file(uploaded_file)
+
+            # Upload file ONLY here — not during upload widget
+            blob_name = upload_file_to_blob(uploaded_file)
+            st.session_state["blob_name"] = blob_name
+
+            # Download for extraction
+            temp_path = download_blob_to_temp(blob_name)
+
             if temp_path.lower().endswith(".pdf"):
-                file_text = extract_text_from_pdf(temp_path)
+                text = extract_text_from_pdf(temp_path)
             else:
-                file_text = extract_text_from_docx(temp_path)
+                text = extract_text_from_docx(temp_path)
 
-            st.session_state['file_text'] = file_text
-            st.success("✅ File processed.You can now ask questions.", icon="💡")
+            st.session_state["file_text"] = text
+
+            st.success("✅ File uploaded + text extracted successfully!")
 
 
-    # --- GENERATE SUMMARY BUTTON (Background) ---
+    # # --- READ FILE BUTTON ---
+    # with col1:
+    #     if st.button("📖 Read File"):
+
+    #         if blob_name is None:
+    #             st.error("Blob not found. Please re-upload file.")
+    #             st.stop()
+
+    #         temp_path = download_blob_to_temp(blob_name)
+
+    #         if temp_path.lower().endswith(".pdf"):
+    #             extracted = extract_text_from_pdf(temp_path)
+    #         else:
+    #             extracted = extract_text_from_docx(temp_path)
+
+    #         st.session_state["file_text"] = extracted
+    #         st.success("✅ File text extracted. You can now ask questions or generate summary.")
+
+
+    # --- GENERATE SUMMARY BUTTON ---
     with col2:
-        if uploaded_file is not None:
 
-            if st.session_state.summary_status == "idle":
+        if st.session_state.summary_status == "idle":
 
-                if st.button("🧠 Generate Summary in Background"):
-                    st.session_state.summary_status = "running"
-                    st.session_state.summary_log = []
-                    st.session_state.summary_error = None
+            if st.button("🧠 Generate Summary in Background"):
+                blob_name = st.session_state.get("blob_name")
+                if blob_name is None:
+                    st.error("Please upload and read file first.")
+                    st.stop()
+                
+                st.session_state.summary_status = "running"
+                st.session_state.summary_log = []
+                st.session_state.summary_error = None
 
-                    saved_path = save_uploaded_file(uploaded_file)
-                    logging.info(f"Uploaded file saved to: {saved_path}")
-                    
-                    future = executor.submit(background_summary, saved_path, api_key, prompt)
+                future = executor.submit(
+                    background_summary,
+                    blob_name,
+                    api_key,
+                    prompt
+                )
 
-                    st.session_state.summary_future = future
+                st.session_state.summary_future = future
+                st.info("⚙️ Summary job started…")
+                st.rerun()
 
-                    st.info("⚙️ Summary started in background…")
-                    st.rerun()  # <<< IMPORTANT - refresh UI immediately
+        elif st.session_state.summary_status == "running":
+
+            st.warning("⏳ Summary is being generated...")
+
+            if st.session_state.summary_log:
+                st.text("\n".join(st.session_state.summary_log[-5:]))
+
+            future = st.session_state.summary_future
+
+            if future and future.done():
+                result = future.result()
+
+                st.session_state.summary_log = result.get("log", [])
+
+                if result.get("path"):
+                    st.session_state.summary_result = result["path"]
+                    st.session_state.summary_status = "done"
+                else:
+                    st.session_state.summary_error = result.get("error", "Unknown error")
+                    st.session_state.summary_status = "error"
+
+                st.rerun()
 
 
-            elif st.session_state.summary_status == "running":
-
-                st.warning("⏳ Summary is being generated...")
-
-                # Show last few logs
-                if st.session_state.summary_log:
-                    st.text("\n".join(st.session_state.summary_log[-5:]))
-
-                future = st.session_state.summary_future
-
-                if future and future.done():
-                    result = future.result()
-
-                    st.session_state.summary_log = result.get("log", [])
-
-                    output_path = result.get("path")
-
-                    if output_path:
-                        st.session_state.summary_result = output_path
-                        st.session_state.summary_status = "done"
-                    else:
-                        st.session_state.summary_status = "error"
-                        st.session_state.summary_error = result.get("error", "Unknown error")
-
-                    st.rerun()  # <<< IMPORTANT - show next state immediately
+    # --- SHOW DOWNLOAD BUTTON ---
     with col3:
         if st.session_state.summary_status == "done":
-            final_docx_path = st.session_state.summary_result
+            st.success("✅ Summary generated and stored in Azure.")
+            st.markdown(
+                f"<a href='{st.session_state.summary_result}' target='_blank'>📄 Download Summary</a>",
+                unsafe_allow_html=True
+            )
 
-            if final_docx_path and os.path.exists(final_docx_path):
-                with open(final_docx_path, "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Summary",
-                        data=f,
-                        file_name=os.path.basename(final_docx_path),
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key="download_summary_button"
-                    )
-            else:
-                st.error("File missing!")
-
+        elif st.session_state.summary_status == "error":
+            st.error(f"❌ Summary failed: {st.session_state.summary_error}")
 
 # --- Query Section ---
 st.markdown("###  ⌨️Deposition Inquiry Assistant")
@@ -902,6 +1088,3 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
-
-
-
