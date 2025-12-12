@@ -1,11 +1,9 @@
-streamlit
+streamlit==1.51.0
 openai==0.28
-requests
-python-docx
-Pillow
+requests==2.32.5
+python-docx==1.2.0
+Pillow==11.3.0
 PyMuPDF==1.23.26
-regex
-azure
-azure-storage-blob
-python-dotenv
+azure-storage-blob==12.27.1
+python-dotenv==1.2.1
 
