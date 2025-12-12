@@ -58,8 +58,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
 # YOUR STORAGE CONNECTION STRING
-AZURE_STORAGE_CONNECTION_STRING =  os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-
+AZURE_STORAGE_CONNECTION_STRING =  (     "DefaultEndpointsProtocol=https;"     "AccountName=depodatastorage;"     "AccountKey=LyN82tPOGrvnh1nEReIzMj2jp5P6BMZZ2D4ypIFGNKqBcoWEAeic06AHrDBGUnjPBYs+gFoss4Ao+ASt6pUvtg==;"     "EndpointSuffix=core.windows.net" )
 # Create Blob Client
 blob_service = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 
@@ -1162,6 +1161,7 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
