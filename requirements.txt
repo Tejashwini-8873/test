@@ -7,3 +7,5 @@ PyMuPDF==1.23.26
 regex
 azure
 azure-storage-blob
+python-dotenv
+
