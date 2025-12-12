@@ -24,11 +24,14 @@ import time
 import base64
 import requests
 
-## ------------------ AZURE BLOB STORAGE SETUP ------------------
+# ------------------ AZURE BLOB STORAGE SETUP ------------------
 from azure.storage.blob import BlobServiceClient
 
 from azure.storage.blob import generate_blob_sas, BlobSasPermissions
 from datetime import datetime, timedelta
+
+from dotenv import load_dotenv
+load_dotenv()
 
 
 # --- Logging ---
@@ -41,9 +44,10 @@ st.session_state.setdefault("summary_result", None)
 st.session_state.setdefault("summary_log", [])
 st.session_state.setdefault("summary_error", None)
 
-# --- API Keys (use env vars for production) ---
-api_key="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"
-PERPLEXITY_API_KEY = "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"
+# # --- API Keys (use env vars for production) ---
+
+api_key = os.getenv("OPENAI_API_KEY")
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
 # YOUR STORAGE CONNECTION STRING
 AZURE_STORAGE_CONNECTION_STRING = (
@@ -524,7 +528,7 @@ st.set_page_config(page_title="Deposition Summarizer", page_icon="🧾", layout=
 
 
 # --- Config ---
-st.set_page_config(page_title="Depo Summarizer | The Wonderful Company", page_icon="📜", layout="wide")
+st.set_page_config(page_title="RLG | Depo Summarizer ", page_icon="📜", layout="wide")
 executor = ThreadPoolExecutor(max_workers=1)
 st.markdown("""
     <style>
@@ -1155,4 +1159,3 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
-
