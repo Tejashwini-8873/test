@@ -32,8 +32,8 @@ from azure.storage.blob import BlobServiceClient
 from azure.storage.blob import generate_blob_sas, BlobSasPermissions
 from datetime import datetime, timedelta
 
-from dotenv import load_dotenv
-load_dotenv()
+# from dotenv import load_dotenv
+# load_dotenv()
 
 
 # --- Logging ---
@@ -47,6 +47,12 @@ st.session_state.setdefault("summary_log", [])
 st.session_state.setdefault("summary_error", None)
 
 # # --- API Keys (use env vars for production) ---
+
+
+# Load .env only when running locally
+if os.path.exists(".env"):
+    from dotenv import load_dotenv
+    load_dotenv()
 
 api_key = os.getenv("OPENAI_API_KEY")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
@@ -1156,5 +1162,6 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
+
 
 
