@@ -63,4 +63,4 @@ jobs:
         with:
           app-name: 'Depo-Poc'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_2D2391DE3E814651AC2A7C2950E4C642 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_84F7F058094649699CAC2C5A5C3063B4 }}
