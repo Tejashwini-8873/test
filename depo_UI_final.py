@@ -1,5 +1,3 @@
-#Deposition Summariser - RLG
-
 import os
 import streamlit as st
 import tempfile
@@ -32,8 +30,8 @@ from azure.storage.blob import BlobServiceClient
 from azure.storage.blob import generate_blob_sas, BlobSasPermissions
 from datetime import datetime, timedelta
 
-# from dotenv import load_dotenv
-# load_dotenv()
+from dotenv import load_dotenv
+load_dotenv()
 
 
 # --- Logging ---
@@ -48,40 +46,23 @@ st.session_state.setdefault("summary_error", None)
 
 # # --- API Keys (use env vars for production) ---
 
-
-# Load .env only when running locally
-if os.path.exists(".env"):
-    from dotenv import load_dotenv
-    load_dotenv()
-
 api_key = os.getenv("OPENAI_API_KEY")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
 # YOUR STORAGE CONNECTION STRING
-AZURE_STORAGE_CONNECTION_STRING =  (     "DefaultEndpointsProtocol=https;"     "AccountName=depodatastorage;"     "AccountKey=LyN82tPOGrvnh1nEReIzMj2jp5P6BMZZ2D4ypIFGNKqBcoWEAeic06AHrDBGUnjPBYs+gFoss4Ao+ASt6pUvtg==;"     "EndpointSuffix=core.windows.net" )
+AZURE_STORAGE_CONNECTION_STRING = (
+    "DefaultEndpointsProtocol=https;"
+    "AccountName=depodatastorage;"
+    "AccountKey=LyN82tPOGrvnh1nEReIzMj2jp5P6BMZZ2D4ypIFGNKqBcoWEAeic06AHrDBGUnjPBYs+gFoss4Ao+ASt6pUvtg==;"
+    "EndpointSuffix=core.windows.net"
+)
+
 # Create Blob Client
 blob_service = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 
 # Containers used
 UPLOAD_CONTAINER = "depositions"
 SUMMARY_CONTAINER = "summaries"
-
-
-# def upload_file_to_blob(uploaded_file):
-#     blob_name = uploaded_file.name
-#     data = uploaded_file.getvalue()
-
-#     print("DEBUG — File name:", blob_name)
-#     print("DEBUG — File size:", len(data))
-
-#     if len(data) == 0:
-#         raise ValueError("Uploaded file is EMPTY — Streamlit upload failed.")
-
-#     container = blob_service.get_container_client(UPLOAD_CONTAINER)
-#     blob_client = container.get_blob_client(blob_name)
-
-#     blob_client.upload_blob(data, overwrite=True)
-#     return blob_name
 
 def upload_file_to_blob(uploaded_file):
     blob_name = uploaded_file.name
@@ -128,21 +109,6 @@ def download_blob_to_temp(blob_name):
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(data)
         return tmp.name
-
-
-# def upload_summary_to_blob(local_path, new_blob_name):
-#     """
-#     Upload the final summary DOCX to Azure Blob Storage.
-#     Returns URL.
-#     """
-#     container = blob_service.get_container_client(SUMMARY_CONTAINER)
-#     blob = container.get_blob_client(new_blob_name)
-
-#     with open(local_path, "rb") as f:
-#         blob.upload_blob(f, overwrite=True)
-
-#     # Public URL (private access uses SAS—can add later)
-#     return f"https://{blob_service.account_name}.blob.core.windows.net/{SUMMARY_CONTAINER}/{new_blob_name}"
 def upload_summary_to_blob(local_path, new_blob_name):
     container = blob_service.get_container_client(SUMMARY_CONTAINER)
     blob = container.get_blob_client(new_blob_name)
@@ -355,14 +321,6 @@ def save_as_docx(summary, filename):
 def save_uploaded_file(uploaded_file):
     # 🔧 Hardcode output paths for debugging
     base_name = os.path.splitext(uploaded_file.name)[0]
-
-    # # Set your fixed output directory
-    # output_dir = r"C:\Users\Teju\Desktop\ammu\955-depo\Depo_sum_sample"
-    # os.makedirs(output_dir, exist_ok=True)
-
-    # raw_output_path = os.path.join(output_dir, f"{base_name}_summary_raw.docx")
-    # formatted_output_path = os.path.join(output_dir, f"{base_name}_summary_formatted.docx")
-
     temp_dir = tempfile.mkdtemp()
     file_path = os.path.join(temp_dir, uploaded_file.name)
     with open(file_path, "wb") as f:
@@ -447,62 +405,6 @@ def background_summary(blob_name, api_key, prompt_text):
         log(f"FATAL ERROR in background_summary(): {e}")
         log(err_trace)
         return {"path": None, "error": str(e), "log": logs}
-# ...existing code...
-
-
-# def background_summary(blob_name, api_key, prompt_text):
-#     logs = []
-
-#     def log(msg):
-#         print(msg)
-#         logs.append(msg)
-
-#     try:
-#         # 1️⃣ Download deposition file from Azure Blob
-#         log(f"📥 Downloading from Azure Blob: {blob_name}")
-#         temp_path = download_blob_to_temp(blob_name)
-
-#         # 2️⃣ Extract text
-#         if temp_path.lower().endswith(".pdf"):
-#             log("🧾 Extracting text from PDF...")
-#             text = extract_text_from_pdf(temp_path)
-#         else:
-#             log("📝 Extracting text from DOCX...")
-#             text = extract_text_from_docx(temp_path)
-
-#         # 3️⃣ Generate summary using GPT
-#         log("🤖 Generating AI summary...")
-#         summary_text = get_chatgpt_response(prompt_text, text, api_key, model="gpt-5")
-
-#         # 4️⃣ Save raw summary locally for formatting
-#         base_name = os.path.splitext(blob_name)[0]
-#         raw_local = os.path.join(tempfile.gettempdir(), f"{base_name}_summary_raw.docx")
-
-#         doc = Document()
-#         doc.add_heading("Deposition Summary", level=1)
-#         doc.add_paragraph(summary_text)
-#         doc.save(raw_local)
-
-#         # 5️⃣ Try formatted summary
-#         final_local = os.path.join(tempfile.gettempdir(), f"{base_name}_summary_final.docx")
-#         try:
-#             create_deposition_summary(raw_local, final_local)
-#             final_used = final_local
-#             log("✅ Formatting applied.")
-#         except Exception as e:
-#             log(f"⚠ Formatting failed: {e}. Using raw summary.")
-#             final_used = raw_local
-
-#         # 6️⃣ Upload summary DOCX to Azure Blob Storage
-#         final_blob_name = f"{base_name}_summary.docx"
-#         final_url = upload_summary_to_blob(final_used, final_blob_name)
-
-#         log("🚀 Uploaded summary to Azure Blob Storage.")
-#         return {"path": final_url, "log": logs}
-
-#     except Exception as e:
-#         traceback.print_exc()
-#         return {"path": None, "error": str(e), "log": logs}
 
 def get_base64_image(image_url):
     response = requests.get(image_url)
@@ -546,7 +448,7 @@ st.markdown("""
         .main {
             background-color: #f5f8f5;
         }
-        header {visibility: hidden;}
+        
 
         /* Top Bar */
         .top-bar {
@@ -597,10 +499,10 @@ st.markdown("""
         }
 
         /* Sidebar */
-        section[data-testid="stSidebar"] {
-            background: #f1f8f2;
-            border-right: 2px solid #b6dec2;
-        }
+        # section[data-testid="stSidebar"] {
+        #     background: #f1f8f2;
+        #     border-right: 2px solid #b6dec2;
+        # }
         .sidebar-title {
             font-weight: 700;
             color: #009e60;
@@ -652,20 +554,69 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+st.markdown("""
+<style>
+
+/* 1️⃣ Push sidebar DOWN below the 140px header */
+section[data-testid="stSidebar"] {
+    margin-top: 150px !important;
+}
+
+
+
+/* 3️⃣ The container wrapping the toggle also needs to be pushed down */
+div[data-testid="collapsedControl"] {
+    position: fixed !important;
+    top: 150px !important;
+    left: 10px !important;
+    z-index: 5005 !important;
+}
+
+/* 4️⃣ Remove Streamlit’s default shadow that overlaps header */
+header {
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+</style>
+""", unsafe_allow_html=True)
+# st.markdown("""
+# <style>
+
+# /* Hide Streamlit menu without hiding the sidebar toggle */
+# header [data-testid="stToolbar"] {
+#     visibility: hidden !important;
+# }
+
+# /* Keep the header container visible so the sidebar toggle still works */
+# header {
+#     height: 0px !important;
+#     min-height: 0px !important;
+# }
+
+# /* Push sidebar toggle below your RLG header */
+# div[data-testid="collapsedControl"] {
+#     position: fixed !important;
+#     top: 150px !important;   /* match your header height */
+#     left: 12px !important;
+#     z-index: 5000 !important;
+# }
+
+# /* Ensure the arrow icon is always visible */
+# div[data-testid="collapsedControl"] button svg {
+#     fill: #000 !important;
+#     opacity: 1 !important;
+# }
+
+# </style>
+# """, unsafe_allow_html=True)
+
 
 # logo_path = r"C:\Users\Teju\Downloads\twc.webp"
 logo_path = r"https://raw.githubusercontent.com/Tejashwini-8873/test/main/assets/RLG.jpg"
 logo_base64 = get_base64_image(logo_path)
 
 
-
-# # Convert logo to Base64 safely
-# def get_base64_image(image_path):
-#     with open(image_path, "rb") as f:
-#         data = f.read()
-#     return base64.b64encode(data).decode()
-
-# logo_base64 = get_base64_image(logo_path)
 
 
 # --- Render Compact Green Header ---
@@ -717,28 +668,6 @@ st.markdown(f"""
         <p>AI-powered legal deposition analysis — with The Wonderful touch 🍃</p>
     </div>
 """, unsafe_allow_html=True)
-# # Increase the column width ratio for the logo
-# col_logo, col_title = st.columns([0.22, 0.78])  # slightly more space for logo
-
-# with col_logo:
-#     # Increase relative display size (use_container_width ensures scaling)
-#     st.image(logo_path, use_container_width=True, caption=None, output_format="auto")
-
-# with col_title:
-#     st.markdown(
-#     """
-#     <div style='line-height:1.3;'>
-#         <h1 style='margin-bottom:4px; color:#009e60;'>
-#             📜 TWC Deposition Summarizer
-#         </h1>
-#         <p style='color:#3e5c45; font-size:16px; margin-left:160px; font-style:italic;'>
-#             – AI-powered legal deposition analysis — with The Wonderful touch 🍃
-#         </p>
-#     </div>
-#     """,
-#     unsafe_allow_html=True
-# )
-
 
 # --- Session State ---
 if "user_responses" not in st.session_state:
@@ -746,19 +675,6 @@ if "user_responses" not in st.session_state:
 if "selected_chat_index" not in st.session_state:
     st.session_state["selected_chat_index"] = None
 
-# --- Sidebar: Chat History ---
-st.sidebar.markdown('<div class="sidebar-title">🕘 Chat History</div>', unsafe_allow_html=True)
-for i, (q, r) in enumerate(reversed(st.session_state["user_responses"])):
-    index = len(st.session_state["user_responses"]) - 1 - i
-    if st.sidebar.button(f"💬 {q[:40]}...", key=f"chat_{index}"):
-        st.session_state["selected_chat_index"] = index
-
-st.sidebar.markdown("---")
-st.sidebar.info("🌱 Click any previous question to view its full response here.")
-
-# --- Main Section ---
-# st.markdown('<h1 class="main-title">AI-Powered Deposition Summarizer</h1>', unsafe_allow_html=True)
-# st.write("📂 Upload a deposition document (PDF or Word) and let AI  summarize and extract key legal insights effortlessly.")
 
 uploaded_file = st.file_uploader("📂 Upload a deposition document (PDF or Word) and let AI  summarize and extract key legal insights effortlessly.", type=["pdf", "docx"])
 
@@ -921,35 +837,65 @@ prompt = f"""
 
 
 # Create horizontal button layout
-col1, col2, col3 = st.columns([1, 1, 1])
-# prompt="summarize the deposition in 2 points"
+
 # ============================
 #  FILE UPLOAD + READ + SUMMARY
 # ============================
-
+# ============================
+#  AUTO READ FILE ON UPLOAD
+# ============================
 if uploaded_file is not None:
 
-    with col1:
+    # Run only once per new upload
+    if st.session_state.get("last_uploaded") != uploaded_file.name:
 
-        if st.button("📖 Read File"):
+        st.session_state["last_uploaded"] = uploaded_file.name
 
-            # Upload file ONLY here — not during upload widget
-            blob_name = upload_file_to_blob(uploaded_file)
-            blob_name, deposition_sas_url = upload_file_to_blob(uploaded_file)
-            st.session_state["deposition_sas_url"] = deposition_sas_url
-            st.session_state["blob_name"] = blob_name
+        # 1️⃣ Upload file to Azure Blob
+        blob_name, deposition_sas_url = upload_file_to_blob(uploaded_file)
+        st.session_state["deposition_sas_url"] = deposition_sas_url
+        st.session_state["blob_name"] = blob_name
 
-            # Download for extraction
-            temp_path = download_blob_to_temp(blob_name)
+        # 2️⃣ Download blob locally for text extraction
+        temp_path = download_blob_to_temp(blob_name)
 
-            if temp_path.lower().endswith(".pdf"):
-                text = extract_text_from_pdf(temp_path)
-            else:
-                text = extract_text_from_docx(temp_path)
+        # 3️⃣ Extract text from PDF or DOCX
+        if temp_path.lower().endswith(".pdf"):
+            text = extract_text_from_pdf(temp_path)
+        else:
+            text = extract_text_from_docx(temp_path)
 
-            st.session_state["file_text"] = text
+        # Save extracted text
+        st.session_state["file_text"] = text
 
-            st.success("✅ File uploaded + text extracted successfully!")
+        # 4️⃣ Show success message once
+        st.success("✅ File uploaded & text extracted automatically!")
+
+# if uploaded_file is not None:
+
+#     # with col1:
+
+#         # if st.button("📖 Read File"):
+#         if "last_uploaded" not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
+#             st.session_state.last_uploaded = uploaded_file.name
+
+#             # Upload file ONLY here — not during upload widget
+#             # blob_name = upload_file_to_blob(uploaded_file)
+#             blob_name, deposition_sas_url = upload_file_to_blob(uploaded_file)
+#             st.session_state["deposition_sas_url"] = deposition_sas_url
+#             st.session_state["blob_name"] = blob_name
+
+#             # Download for extraction
+#             temp_path = download_blob_to_temp(blob_name)
+
+#             if temp_path.lower().endswith(".pdf"):
+#                 text = extract_text_from_pdf(temp_path)
+#             else:
+#                 text = extract_text_from_docx(temp_path)
+
+#             st.session_state["file_text"] = text
+
+#             st.success("✅ File uploaded + text extracted successfully!")
 
 
     # # --- READ FILE BUTTON ---
@@ -970,9 +916,10 @@ if uploaded_file is not None:
     #         st.session_state["file_text"] = extracted
     #         st.success("✅ File text extracted. You can now ask questions or generate summary.")
 
+col1, col2, col3 = st.columns([1, 1, 1])
 
     # --- GENERATE SUMMARY BUTTON ---
-    with col2:
+with col1:
 
         if st.session_state.summary_status == "idle":
 
@@ -1022,7 +969,7 @@ if uploaded_file is not None:
 
 
     # --- SHOW DOWNLOAD BUTTON ---
-    with col3:
+with col3:
         if st.session_state.summary_status == "done":
             st.success("✅ Summary generated and stored in Azure.")
             st.markdown(
@@ -1096,6 +1043,7 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+
 if query_type == "Dropdown":
  
     depo_fields = [
@@ -1117,7 +1065,7 @@ if query_type == "Dropdown":
         st.stop()
 else:
     # user_input = st.text_input("Enter your Query:")
-    query = st.text_input("📝 Enter your question:")
+    query =user_input= st.text_input("📝 Enter your question:")
 
 # --- Processing Button ---
 if st.button("💬 Ask AI"):
@@ -1161,7 +1109,3 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
-
-
-
-
