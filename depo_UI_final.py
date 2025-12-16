@@ -422,7 +422,9 @@ def get_chatgpt_response(prompt: str,text: str, api_key: str, model: str) -> str
     ]
     response = openai.ChatCompletion.create(
         model=model,
-        messages=messages
+        messages=messages,
+        request_timeout=1200,   #  Increase timeout
+        timeout=1200
         # reasoning={"effort": "high"}
     )
     return response["choices"][0]["message"]["content"].strip()
@@ -1109,3 +1111,4 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
+
