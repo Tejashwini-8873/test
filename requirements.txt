@@ -1,4 +1,4 @@
-streamlit==1.51.0
+streamlit==1.53.0
 openai==0.28
 requests==2.32.5
 python-docx==1.2.0
@@ -6,4 +6,5 @@ Pillow==11.3.0
 PyMuPDF==1.23.26
 azure-storage-blob==12.27.1
 python-dotenv==1.2.1
+streamlit-autorefresh==1.0.1
 
