@@ -1,5 +1,3 @@
-#auto refresh updated 
-
 import os
 import streamlit as st
 import tempfile
@@ -51,8 +49,6 @@ st.session_state.setdefault("summary_completed_once", False)
 st.session_state.setdefault("summary_needs_rerun", False)
 st.session_state.setdefault("show_status_msg", False)
 st.session_state.setdefault("pause_autorefresh", False)
-
-
 
 import time
 
@@ -119,6 +115,7 @@ blob_service = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION
 # Containers used
 UPLOAD_CONTAINER = "depositions"
 SUMMARY_CONTAINER = "summaries"
+
 
 def upload_file_to_blob(uploaded_file):
     blob_name = uploaded_file.name
@@ -258,7 +255,6 @@ def extract_page_group_json(text: str):
     raise ValueError("No valid Page-Group JSON found in GPT output")
 
 
-
 executor = ThreadPoolExecutor(max_workers=1)
 def create_deposition_summary(input_docx, output_docx):
     # Load input DOCX
@@ -291,7 +287,8 @@ def create_deposition_summary(input_docx, output_docx):
         json_str = json_str.replace("–", "-").replace("\u2013", "-").replace("\u00a0", " ")
         # print(("Cleaned JSON String:", json_str))
         # Parse JSON
-        deposition_data = json.loads(json_str)
+        # deposition_data = json.loads(json_str)
+        deposition_data = extract_page_group_json(json_str)
         print("✅ Extracted deposition data from JSON successfully.")
 
     except Exception as e:
@@ -492,6 +489,8 @@ def background_summary(blob_name, api_key, prompt_text):
         try:
             log("Attempting to format raw summary into structured DOCX...")
             create_deposition_summary(raw_local, final_local)
+            if not os.path.exists(final_local):
+                raise ValueError("Formatted DOCX was not created.")
             final_used = final_local
             log("✅ Formatting applied successfully.")
         except Exception as e:
@@ -758,7 +757,7 @@ if "selected_chat_index" not in st.session_state:
     st.session_state["selected_chat_index"] = None
 
 
-uploaded_file = st.file_uploader("📂 Upload a deposition document (PDF or Word) and let AI  summarize and extract key legal insights effortlessly.", type=["pdf", "docx"])
+uploaded_file = st.file_uploader("📂 Upload a deposition document (PDF only) and let AI  summarize and extract key legal insights effortlessly.", type=["pdf", "docx"])
 
 # Save file temporarily
 def save_uploaded_file(uploaded_file):
@@ -1219,5 +1218,3 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
-
-
