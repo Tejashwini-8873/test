@@ -23,6 +23,8 @@ import threading
 import time
 import base64
 import requests
+from streamlit_autorefresh import st_autorefresh
+
 
 # ------------------ AZURE BLOB STORAGE SETUP ------------------
 from azure.storage.blob import BlobServiceClient
@@ -43,6 +45,58 @@ st.session_state.setdefault("summary_future", None)
 st.session_state.setdefault("summary_result", None)
 st.session_state.setdefault("summary_log", [])
 st.session_state.setdefault("summary_error", None)
+st.session_state.setdefault("summary_completed_once", False)
+st.session_state.setdefault("summary_needs_rerun", False)
+st.session_state.setdefault("show_status_msg", False)
+st.session_state.setdefault("pause_autorefresh", False)
+
+
+
+import time
+
+if (
+    st.session_state.summary_status == "running"
+    and not st.session_state.pause_autorefresh
+):
+    st_autorefresh(interval=10000, key="summary_poll")
+
+
+
+if st.session_state.summary_status == "running":
+    future = st.session_state.get("summary_future")
+
+    if (
+    st.session_state.summary_status == "running"
+    and future
+    and future.done()):
+        result = future.result()
+        
+
+        st.session_state.summary_log = result.get("log", [])
+
+        if result.get("path"):
+            st.session_state.summary_result = result["path"]
+            st.session_state.summary_status = "done"
+            
+            st.session_state.show_status_msg = False   
+        else:
+            st.session_state.summary_error = result.get("error", "Unknown error")
+            st.session_state.summary_status = "error"
+            st.session_state.show_status_msg = False  
+        st.session_state.summary_completed_once = True
+        
+
+if st.session_state.summary_needs_rerun:
+    st.session_state.summary_needs_rerun = False
+    st.rerun()
+
+if st.session_state.summary_completed_once:
+    st.session_state.summary_completed_once = False
+
+    st.rerun()
+
+
+        # st.rerun()
 
 # # --- API Keys (use env vars for production) ---
 
@@ -582,36 +636,6 @@ header {
 
 </style>
 """, unsafe_allow_html=True)
-# st.markdown("""
-# <style>
-
-# /* Hide Streamlit menu without hiding the sidebar toggle */
-# header [data-testid="stToolbar"] {
-#     visibility: hidden !important;
-# }
-
-# /* Keep the header container visible so the sidebar toggle still works */
-# header {
-#     height: 0px !important;
-#     min-height: 0px !important;
-# }
-
-# /* Push sidebar toggle below your RLG header */
-# div[data-testid="collapsedControl"] {
-#     position: fixed !important;
-#     top: 150px !important;   /* match your header height */
-#     left: 12px !important;
-#     z-index: 5000 !important;
-# }
-
-# /* Ensure the arrow icon is always visible */
-# div[data-testid="collapsedControl"] button svg {
-#     fill: #000 !important;
-#     opacity: 1 !important;
-# }
-
-# </style>
-# """, unsafe_allow_html=True)
 
 
 # logo_path = r"C:\Users\Teju\Downloads\twc.webp"
@@ -690,6 +714,8 @@ def save_uploaded_file(uploaded_file):
 
 col1, col2, col3 = st.columns([1, 1, 1])
 # prompt = "Summarize the deposition in 2 points"
+
+
 
 
 json_format= """{
@@ -838,8 +864,6 @@ prompt = f"""
 
 
 
-# Create horizontal button layout
-
 # ============================
 #  FILE UPLOAD + READ + SUMMARY
 # ============================
@@ -922,7 +946,7 @@ col1, col2, col3 = st.columns([1, 1, 1])
 
     # --- GENERATE SUMMARY BUTTON ---
 with col1:
-
+     
         if st.session_state.summary_status == "idle":
 
             if st.button("🧠 Generate Summary in Background"):
@@ -941,33 +965,58 @@ with col1:
                     api_key,
                     prompt
                 )
-
+               
                 st.session_state.summary_future = future
                 st.info("⚙️ Summary job started…")
-                st.rerun()
+                # st.rerun()
 
-        elif st.session_state.summary_status == "running":
+        # elif st.session_state.summary_status == "running":
 
-            st.warning("⏳ Summary is being generated...")
+        #     st.warning("⏳ Summary is being generated...")
 
-            if st.session_state.summary_log:
-                st.text("\n".join(st.session_state.summary_log[-5:]))
+        #     if st.session_state.summary_log:
+        #         st.text("\n".join(st.session_state.summary_log[-5:]))
 
-            future = st.session_state.summary_future
+        #     future = st.session_state.summary_future
 
-            if future and future.done():
-                result = future.result()
+        #     if future and future.done():
+        #         result = future.result()
 
-                st.session_state.summary_log = result.get("log", [])
+        #         st.session_state.summary_log = result.get("log", [])
 
-                if result.get("path"):
-                    st.session_state.summary_result = result["path"]
-                    st.session_state.summary_status = "done"
-                else:
-                    st.session_state.summary_error = result.get("error", "Unknown error")
-                    st.session_state.summary_status = "error"
+        #         if result.get("path"):
+        #             st.session_state.summary_result = result["path"]
+        #             st.session_state.summary_status = "done"
+        #         else:
+        #             st.session_state.summary_error = result.get("error", "Unknown error")
+        #             st.session_state.summary_status = "error"
 
-                st.rerun()
+        #         st.rerun()
+
+# with col2:
+#     if st.session_state.summary_status in ("running", "done"):
+#         if st.button("↻ Status", use_container_width=False):
+#             if st.session_state.summary_status == "running":
+#                 st.info("⏳ Summary is still in progress…")
+#             else:
+#                 st.rerun()
+# with col2:
+#     if st.session_state.summary_status == "running" or st.session_state.summary_status == "done":
+#         if st.button("🔍 Check status", use_container_width=False):
+#             if st.session_state.summary_status == "running":
+#                 st.info("⏳ Your summary is still being inprogress..")
+with col2:
+    if st.session_state.summary_status in ("running", "done"):
+        if st.button("🔍 Check Summary status", use_container_width=False):
+            if st.session_state.summary_status == "running":
+                st.session_state.show_status_msg = True
+        if (
+            st.session_state.summary_status == "running"
+            and st.session_state.show_status_msg
+        ):
+            st.info("⏳ Working on your summary — explore the page in the meantime 🚀")
+
+
 
 
     # --- SHOW DOWNLOAD BUTTON ---
@@ -1071,7 +1120,9 @@ else:
 
 # --- Processing Button ---
 if st.button("💬 Ask AI"):
+    st.session_state.pause_autorefresh = True
     text_data = st.session_state.get('file_text', '')
+    
     if not text_data:
         st.warning("Please upload and read a file first.")
     else:
@@ -1089,6 +1140,7 @@ if st.button("💬 Ask AI"):
             user_responses.append((query, response))
             st.session_state['user_responses'] = user_responses
             st.success("✅ Response generated!")
+    st.rerun()
 
 # --- Display Responses (Chat style) ---
 st.markdown("### 🧠 AI Generated Answer")
@@ -1111,4 +1163,3 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
-
