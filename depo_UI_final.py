@@ -256,7 +256,7 @@ def extract_page_group_json(text: str):
     raise ValueError("No valid Page-Group JSON found in GPT output")
 
 
-executor = ThreadPoolExecutor(max_workers=1)
+executor = ThreadPoolExecutor(max_workers=4)
 def create_deposition_summary(input_docx, output_docx):
     # Load input DOCX
     doc = Document(input_docx)
@@ -545,7 +545,7 @@ st.set_page_config(page_title="Deposition Summarizer", page_icon="🧾", layout=
 
 # --- Config ---
 st.set_page_config(page_title="RLG | Depo Summarizer ", page_icon="📜", layout="wide")
-executor = ThreadPoolExecutor(max_workers=1)
+# executor = ThreadPoolExecutor(max_workers=1)
 st.markdown("""
     <style>
         .main, body, [class*="block-container"] {
@@ -1225,3 +1225,4 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
+
