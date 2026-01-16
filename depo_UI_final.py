@@ -256,7 +256,7 @@ def extract_page_group_json(text: str):
     raise ValueError("No valid Page-Group JSON found in GPT output")
 
 
-executor = ThreadPoolExecutor(max_workers=4)
+executor = ThreadPoolExecutor(max_workers=2)
 def create_deposition_summary(input_docx, output_docx):
     # Load input DOCX
     doc = Document(input_docx)
@@ -1225,4 +1225,5 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
+
 
