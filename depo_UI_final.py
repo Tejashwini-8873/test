@@ -56,7 +56,7 @@ if (
     st.session_state.summary_status == "running"
     and not st.session_state.pause_autorefresh
 ):
-    st_autorefresh(interval=10000, key="summary_poll")
+    st_autorefresh(interval=15000, key="summary_poll")
 
 
 
@@ -100,6 +100,7 @@ if st.session_state.summary_completed_once:
 
 api_key = os.getenv("OPENAI_API_KEY")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
+
 
 # YOUR STORAGE CONNECTION STRING
 AZURE_STORAGE_CONNECTION_STRING = (
@@ -757,7 +758,7 @@ if "selected_chat_index" not in st.session_state:
     st.session_state["selected_chat_index"] = None
 
 
-uploaded_file = st.file_uploader("📂 Upload a deposition document (PDF only) and let AI  summarize and extract key legal insights effortlessly.", type=["pdf", "docx"])
+uploaded_file = st.file_uploader("📂 Upload a deposition document (PDF only) and let AI  summarize and extract key legal insights effortlessly.", type=["pdf"])
 
 # Save file temporarily
 def save_uploaded_file(uploaded_file):
@@ -926,6 +927,12 @@ prompt = f"""
 #  AUTO READ FILE ON UPLOAD
 # ============================
 if uploaded_file is not None:
+    file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+
+    if file_ext != ".pdf":
+        st.error("❌ Invalid file format. Please upload a PDF deposition document only.")
+        st.stop()
+
 
     # Run only once per new upload
     if st.session_state.get("last_uploaded") != uploaded_file.name:
