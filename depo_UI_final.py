@@ -204,6 +204,60 @@ def ensure_container(container_name):
 # ensure_container(UPLOAD_CONTAINER)
 # ensure_container(SUMMARY_CONTAINER)
 
+import json
+import re
+
+def extract_page_group_json(text: str):
+    """
+    Extracts Page-Group Subject Summaries JSON from GPT output.
+    Handles:
+      - Header text before JSON
+      - Single JSON object
+      - Multiple JSON objects
+      - JSON array
+    Always returns a LIST of dicts.
+    """
+
+    # 1️⃣ Remove known headers / labels
+    cleaned = re.sub(
+        r"Page-Group Subject Summaries\s*\(JSON\)\s*",
+        "",
+        text,
+        flags=re.IGNORECASE
+    ).strip()
+
+    # 2️⃣ Try direct JSON parse first
+    try:
+        data = json.loads(cleaned)
+        if isinstance(data, dict):
+            return [data]
+        if isinstance(data, list):
+            return data
+    except Exception:
+        pass
+
+    # 3️⃣ Extract JSON array if present
+    array_match = re.search(r"\[\s*\{.*?\}\s*\]", cleaned, re.DOTALL)
+    if array_match:
+        return json.loads(array_match.group(0))
+
+    # 4️⃣ Extract multiple standalone JSON objects
+    objects = []
+    for match in re.finditer(r"\{.*?\}", cleaned, re.DOTALL):
+        try:
+            obj = json.loads(match.group(0))
+            if isinstance(obj, dict) and "subject" in obj:
+                objects.append(obj)
+        except Exception:
+            continue
+
+    if objects:
+        return objects
+
+    # 5️⃣ Nothing valid found
+    raise ValueError("No valid Page-Group JSON found in GPT output")
+
+
 
 executor = ThreadPoolExecutor(max_workers=1)
 def create_deposition_summary(input_docx, output_docx):
@@ -479,8 +533,8 @@ def get_chatgpt_response(prompt: str,text: str, api_key: str, model: str) -> str
     response = openai.ChatCompletion.create(
         model=model,
         messages=messages,
-        request_timeout=1200,   #  Increase timeout
-        timeout=1200
+        request_timeout=2000,   #  Increase timeout
+        timeout=2000
         # reasoning={"effort": "high"}
     )
     return response["choices"][0]["message"]["content"].strip()
@@ -1165,4 +1219,5 @@ st.markdown("""
     © The Wonderful Company LLC 🌳 All Rights Reserved.
 </div>
 """, unsafe_allow_html=True)
+
 
