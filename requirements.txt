@@ -1,5 +1,5 @@
 streamlit==1.53.0
-openai==0.28
+openai==2.15.0
 requests==2.32.5
 python-docx==1.2.0
 Pillow==11.3.0
