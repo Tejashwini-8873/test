@@ -1,3 +1,5 @@
+#Backend_functions
+
 import os
 import tempfile
 import logging
@@ -507,3 +509,4 @@ def background_summary(blob_name, api_key_arg, prompt_text):
 def get_base64_image(image_url):
     response = requests.get(image_url)
     return base64.b64encode(response.content).decode()
+
