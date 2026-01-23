@@ -330,9 +330,22 @@ def create_deposition_summary(input_docx, output_docx):
 
     table = out.add_table(rows=1, cols=2)
     table.style = 'Table Grid'
+    
+    # Set column widths (85% / 15%) - Approx 5.53" and 0.97"
+    table.allow_autofit = False
+    
+    col_1_width = Inches(5.53)
+    col_2_width = Inches(0.97)
+    
+    table.columns[0].width = col_1_width
+    table.columns[1].width = col_2_width
+    
     hdr_cells = table.rows[0].cells
     hdr_cells[0].text = "Subject & Content"
+    hdr_cells[0].width = col_1_width
+    
     hdr_cells[1].text = "Page:Line Range"
+    hdr_cells[1].width = col_2_width
 
     # Fill table
     for entry in deposition_data:
@@ -347,6 +360,11 @@ def create_deposition_summary(input_docx, output_docx):
         line_str = "\n".join(line_refs)
 
         row_cells = table.add_row().cells
+        
+        # Enforce width on cells
+        row_cells[0].width = col_1_width
+        row_cells[1].width = col_2_width
+        
         paragraph = row_cells[0].paragraphs[0]
         run = paragraph.add_run(entry["subject"] + "; ")
         run.bold = True
@@ -388,14 +406,35 @@ def create_deposition_summary(input_docx, output_docx):
                 # Create Word table
                 exhibit_table = out.add_table(rows=1, cols=len(header_row))
                 exhibit_table.style = 'Table Grid'
+                
+                # Setup widths if we have 3 columns
+                if len(header_row) == 3:
+                     exhibit_table.allow_autofit = False
+                     
+                     ex_col_1 = Inches(1.63)  # Approx 25%
+                     ex_col_2 = Inches(1.1)   # Approx 17%
+                     ex_col_3 = Inches(3.77)  # Approx 58%
+                     
+                     exhibit_table.columns[0].width = ex_col_1
+                     exhibit_table.columns[1].width = ex_col_2
+                     exhibit_table.columns[2].width = ex_col_3
+                     
+                     widths = [ex_col_1, ex_col_2, ex_col_3]
+                else:
+                     widths = None
+
                 hdr_cells = exhibit_table.rows[0].cells
                 for i, col_name in enumerate(header_row):
                     hdr_cells[i].text = col_name
+                    if widths and i < len(widths):
+                        hdr_cells[i].width = widths[i]
 
                 for row in data_rows:
                     row_cells = exhibit_table.add_row().cells
                     for i, val in enumerate(row):
                         row_cells[i].text = val
+                        if widths and i < len(widths):
+                             row_cells[i].width = widths[i]
                 continue
         # --------------------------------------
 
@@ -509,4 +548,3 @@ def background_summary(blob_name, api_key_arg, prompt_text):
 def get_base64_image(image_url):
     response = requests.get(image_url)
     return base64.b64encode(response.content).decode()
-
